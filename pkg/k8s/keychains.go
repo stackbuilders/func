@@ -1,14 +1,15 @@
 package k8s
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
-	"os"
-	"path"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/google"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"knative.dev/func/pkg/creds"
 	"knative.dev/func/pkg/oci"
@@ -55,31 +56,22 @@ func GetACRCredentialLoader() []creds.CredentialsCallback {
 				return oci.Credentials{}, nil
 			}
 
-			f, err := os.Open(path.Join(os.Getenv("HOME"), ".azure", "accessTokens.json"))
+			// TODO: Save token somewhere and check expiration before asking for a new one
+
+			azCredential, err := azidentity.NewDefaultAzureCredential(nil)
 			if err != nil {
-				return oci.Credentials{}, fmt.Errorf("open Azure access tokens: %w", err)
-			}
-			defer f.Close()
-
-			var tokens []struct {
-				AccessToken string `json:"accessToken"`
-				Resource    string `json:"resource"`
+				return oci.Credentials{}, fmt.Errorf("Failed to create default Azure credentials: %v", err)
 			}
 
-			if err := json.NewDecoder(f).Decode(&tokens); err != nil {
-				return oci.Credentials{}, fmt.Errorf("decode Azure access tokens: %w", err)
+			token, err := azCredential.GetToken(context.Background(), policy.TokenRequestOptions{Scopes: []string{"https://management.azure.com/.default"}})
+			if err != nil {
+				return oci.Credentials{}, fmt.Errorf("Failed to get Azure access token: %v", err)
 			}
 
-			target := "https://" + registry
-			for _, t := range tokens {
-				if t.Resource == target {
-					return oci.Credentials{
-						Username: "00000000-0000-0000-0000-000000000000",
-						Password: t.AccessToken,
-					}, nil
-				}
-			}
-			return oci.Credentials{}, nil
+			return oci.Credentials{
+				Username: "00000000-0000-0000-0000-000000000000",
+				Password: token.Token,
+			}, nil
 		},
 	}
 }
