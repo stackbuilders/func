@@ -104,7 +104,7 @@ func newTransport(insecureSkipVerify bool) fnhttp.RoundTripCloser {
 func newCredentialsProvider(configPath string, t http.RoundTripper) oci.CredentialsProvider {
 	additionalLoaders := append(k8s.GetOpenShiftDockerCredentialLoaders(), k8s.GetGoogleCredentialLoader()...)
 	additionalLoaders = append(additionalLoaders, k8s.GetECRCredentialLoader()...)
-	additionalLoaders = append(additionalLoaders, k8s.GetACRCredentialLoader()...)
+	additionalLoaders = append(additionalLoaders, k8s.GetACRCredentialLoader(configPath)...)
 	options := []creds.Opt{
 		creds.WithPromptForCredentials(prompt.NewPromptForCredentials(os.Stdin, os.Stdout, os.Stderr)),
 		creds.WithPromptForCredentialStore(prompt.NewPromptForCredentialStore()),
