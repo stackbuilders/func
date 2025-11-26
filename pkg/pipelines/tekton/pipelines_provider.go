@@ -14,8 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -26,9 +24,9 @@ import (
 	pipelineClient "github.com/tektoncd/pipeline/pkg/client/clientset/versioned/typed/pipeline/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
-
 	"knative.dev/func/pkg/docker"
 	fn "knative.dev/func/pkg/functions"
 	"knative.dev/func/pkg/k8s"
@@ -230,7 +228,7 @@ func (pp *PipelinesProvider) Run(ctx context.Context, f fn.Function) (string, fn
 
 	newestPipelineRun, err = client.PipelineRuns(namespace).Get(ctx, newestPipelineRun.Name, metav1.GetOptions{})
 	if err != nil {
-		return "", f, fmt.Errorf("problem in retriving pipeline run status: %v", err)
+		return "", f, fmt.Errorf("problem in retrieving pipeline run status: %v", err)
 	}
 
 	if newestPipelineRun.Status.GetCondition(apis.ConditionSucceeded).Status == corev1.ConditionFalse {

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"encoding/json"
-	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
@@ -187,19 +186,15 @@ func (items listItems) Plain(w io.Writer) error {
 	tabWriter := tabwriter.NewWriter(w, 0, 8, 2, ' ', 0)
 	defer tabWriter.Flush()
 
-	fmt.Fprintf(tabWriter, "%s\t%s\t%s\t%s\t%s\n", "NAME", "NAMESPACE", "RUNTIME", "URL", "READY")
+	fmt.Fprintf(tabWriter, "%s\t%s\t%s\t%s\t%s\t%s\n", "NAME", "NAMESPACE", "RUNTIME", "DEPLOYER", "URL", "READY")
 	for _, item := range items {
-		fmt.Fprintf(tabWriter, "%s\t%s\t%s\t%s\t%s\n", item.Name, item.Namespace, item.Runtime, item.URL, item.Ready)
+		fmt.Fprintf(tabWriter, "%s\t%s\t%s\t%s\t%s\t%s\n", item.Name, item.Namespace, item.Runtime, item.Deployer, item.URL, item.Ready)
 	}
 	return nil
 }
 
 func (items listItems) JSON(w io.Writer) error {
 	return json.NewEncoder(w).Encode(items)
-}
-
-func (items listItems) XML(w io.Writer) error {
-	return xml.NewEncoder(w).Encode(items)
 }
 
 func (items listItems) YAML(w io.Writer) error {

@@ -14,7 +14,7 @@ SYNOPSIS
 	             [-b|--build] [--builder] [--builder-image] [-p|--push]
 	             [--domain] [--platform] [--build-timestamp] [--pvc-size]
 	             [--service-account] [-c|--confirm] [-v|--verbose]
-	             [--registry-insecure] [--remote-storage-class]
+	             [--registry-insecure] [--registry-authfile] [--remote-storage-class]
 
 DESCRIPTION
 
@@ -119,6 +119,7 @@ func deploy
   -b, --builder string                Builder to use when creating the function's container. Currently supported builders are "host", "pack" and "s2i". (default "pack")
       --builder-image string          Specify a custom builder image for use by the builder other than its default. ($FUNC_BUILDER_IMAGE)
   -c, --confirm                       Prompt to confirm options interactively ($FUNC_CONFIRM)
+      --deployer string               Type of deployment to use: 'knative' for Knative Service (default) or 'raw' for Kubernetes Deployment ($FUNC_DEPLOY_TYPE)
       --domain string                 Domain to use for the function's route.  Cluster must be configured with domain matching for the given domain (ignored if unrecognized) ($FUNC_DOMAIN)
   -e, --env stringArray               Environment variable to set in the form NAME=VALUE. You may provide this flag multiple times for setting multiple environment variables. To unset, specify the environment variable name followed by a "-" (e.g., NAME-).
   -t, --git-branch string             Git revision (branch) to be used when deploying via the Git repository ($FUNC_GIT_BRANCH)
@@ -132,6 +133,7 @@ func deploy
   -u, --push                          Push the function image to registry before deploying. ($FUNC_PUSH) (default true)
       --pvc-size string               When triggering a remote deployment, set a custom volume size to allocate for the build operation ($FUNC_PVC_SIZE)
   -r, --registry string               Container registry + registry namespace. (ex 'ghcr.io/myuser').  The full image name is automatically determined using this along with function name. ($FUNC_REGISTRY)
+      --registry-authfile string      Path to a authentication file containing registry credentials ($FUNC_REGISTRY_AUTHFILE)
       --registry-insecure             Skip TLS certificate verification when communicating in HTTPS with the registry ($FUNC_REGISTRY_INSECURE)
   -R, --remote                        Trigger a remote deployment. Default is to deploy and build from the local system ($FUNC_REMOTE)
       --remote-storage-class string   Specify a storage class to use for the volume on-cluster during remote builds

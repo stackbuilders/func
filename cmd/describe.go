@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"encoding/json"
-	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
@@ -51,7 +50,7 @@ the current directory or from the directory specified with --path.
 	}
 
 	// Flags
-	cmd.Flags().StringP("output", "o", "human", "Output format (human|plain|json|xml|yaml|url) ($FUNC_OUTPUT)")
+	cmd.Flags().StringP("output", "o", "human", "Output format (human|plain|json|yaml|url) ($FUNC_OUTPUT)")
 	cmd.Flags().StringP("namespace", "n", defaultNamespace(fn.Function{}, false), "The namespace in which to look for the named function. ($FUNC_NAMESPACE)")
 	addPathFlag(cmd)
 	addVerboseFlag(cmd, cfg.Verbose)
@@ -85,7 +84,7 @@ func runDescribe(cmd *cobra.Command, args []string, newClient ClientFactory) (er
 			return err
 		}
 		if !f.Initialized() {
-			return errors.New("function not found at this path and no name provided")
+			return formatError(fn.NewErrNotInitialized(f.Root))
 		}
 		details, err = client.Describe(cmd.Context(), "", "", f)
 		if err != nil {
@@ -95,6 +94,32 @@ func runDescribe(cmd *cobra.Command, args []string, newClient ClientFactory) (er
 
 	write(os.Stdout, info(details), cfg.Output)
 	return
+}
+
+// formatError wraps ErrNotInitialized with user-friendly guidance
+func formatError(err error) error {
+	var errNotInitialized *fn.ErrNotInitialized
+	if errors.As(err, &errNotInitialized) {
+		return fmt.Errorf(`%s
+
+No function found in provided path (current directory or via --path).
+You need to be in a function directory (or use --path).
+
+Try this:
+  func create --language go myfunction    Create a new function
+  cd myfunction                          Go into the function directory
+  func describe                          Show function description
+
+Or if you have an existing function:
+  cd path/to/your/function              Go to your function directory
+  func describe                         Show function description
+
+Or use --path to describe from anywhere:
+  func describe --path /path/to/function
+
+For more information try 'func describe --help'`, errNotInitialized.Error())
+	}
+	return err
 }
 
 // CLI Configuration (parameters)
@@ -153,6 +178,9 @@ func (i info) Human(w io.Writer) error {
 		fmt.Fprintf(w, "  %v\n", route)
 	}
 
+	fmt.Fprintln(w, "Deployer:")
+	fmt.Fprintf(w, "  %v\n", i.Deployer)
+
 	if len(i.Subscriptions) > 0 {
 		fmt.Fprintln(w, "Subscriptions (Source, Type, Broker):")
 		for _, s := range i.Subscriptions {
@@ -178,6 +206,8 @@ func (i info) Plain(w io.Writer) error {
 		fmt.Fprintf(w, "Route %v\n", route)
 	}
 
+	fmt.Fprintf(w, "Deployer %v\n", i.Deployer)
+
 	if len(i.Subscriptions) > 0 {
 		for _, s := range i.Subscriptions {
 			fmt.Fprintf(w, "Subscription %v %v %v\n", s.Source, s.Type, s.Broker)
@@ -194,10 +224,6 @@ func (i info) Plain(w io.Writer) error {
 
 func (i info) JSON(w io.Writer) error {
 	return json.NewEncoder(w).Encode(i)
-}
-
-func (i info) XML(w io.Writer) error {
-	return xml.NewEncoder(w).Encode(i)
 }
 
 func (i info) YAML(w io.Writer) error {

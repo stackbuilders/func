@@ -15,11 +15,12 @@ import (
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"knative.dev/client/pkg/util"
-
 	"knative.dev/func/pkg/builders"
 	"knative.dev/func/pkg/config"
 	fn "knative.dev/func/pkg/functions"
 	"knative.dev/func/pkg/k8s"
+	"knative.dev/func/pkg/knative"
+	"knative.dev/func/pkg/utils"
 )
 
 func NewDeployCmd(newClient ClientFactory) *cobra.Command {
@@ -36,7 +37,7 @@ SYNOPSIS
 	             [-b|--build] [--builder] [--builder-image] [-p|--push]
 	             [--domain] [--platform] [--build-timestamp] [--pvc-size]
 	             [--service-account] [-c|--confirm] [-v|--verbose]
-	             [--registry-insecure] [--remote-storage-class]
+	             [--registry-insecure] [--registry-authfile] [--remote-storage-class]
 
 DESCRIPTION
 
@@ -131,8 +132,9 @@ EXAMPLES
 		PreRunE: bindEnv("build", "build-timestamp", "builder", "builder-image",
 			"base-image", "confirm", "domain", "env", "git-branch", "git-dir",
 			"git-url", "image", "namespace", "path", "platform", "push", "pvc-size",
-			"service-account", "registry", "registry-insecure", "remote",
-			"username", "password", "token", "verbose", "remote-storage-class"),
+			"service-account", "deployer", "registry", "registry-insecure",
+			"registry-authfile", "remote", "username", "password", "token", "verbose",
+			"remote-storage-class"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runDeploy(cmd, newClient)
 		},
@@ -160,6 +162,7 @@ EXAMPLES
 	cmd.Flags().StringP("registry", "r", cfg.Registry,
 		"Container registry + registry namespace. (ex 'ghcr.io/myuser').  The full image name is automatically determined using this along with function name. ($FUNC_REGISTRY)")
 	cmd.Flags().Bool("registry-insecure", cfg.RegistryInsecure, "Skip TLS certificate verification when communicating in HTTPS with the registry ($FUNC_REGISTRY_INSECURE)")
+	cmd.Flags().String("registry-authfile", "", "Path to a authentication file containing registry credentials ($FUNC_REGISTRY_AUTHFILE)")
 
 	// Function-Context Flags:
 	// Options whose value is available on the function with context only
@@ -192,6 +195,8 @@ EXAMPLES
 		"When triggering a remote deployment, set a custom volume size to allocate for the build operation ($FUNC_PVC_SIZE)")
 	cmd.Flags().String("service-account", f.Deploy.ServiceAccountName,
 		"Service account to be used in the deployed function ($FUNC_SERVICE_ACCOUNT)")
+	cmd.Flags().String("deployer", f.Deploy.Deployer,
+		fmt.Sprintf("Type of deployment to use: '%s' for Knative Service (default) or '%s' for Kubernetes Deployment ($FUNC_DEPLOY_TYPE)", knative.KnativeDeployerName, k8s.KubernetesDeployerName))
 	// Static Flags:
 	// Options which have static defaults only (not globally configurable nor
 	// persisted with the function)
@@ -233,7 +238,63 @@ EXAMPLES
 		fmt.Println("internal: error while calling RegisterFlagCompletionFunc: ", err)
 	}
 
+	if err := cmd.RegisterFlagCompletionFunc("deployer", CompleteDeployerList); err != nil {
+		fmt.Println("internal: error while calling RegisterFlagCompletionFunc: ", err)
+	}
+
 	return cmd
+}
+
+// wrapInvalidKubeconfigError returns a user-friendly error for invalid kubeconfig paths
+func wrapInvalidKubeconfigError(err error) error {
+	kubeconfigPath := os.Getenv("KUBECONFIG")
+	if kubeconfigPath == "" {
+		kubeconfigPath = "~/.kube/config (default)"
+	}
+
+	return fmt.Errorf(`%w
+
+The kubeconfig file at '%s' does not exist or is not accessible.
+
+Try this:
+  export KUBECONFIG=~/.kube/config           Use default kubeconfig
+  kubectl config view                        Verify current config
+  ls -la ~/.kube/config                      Check if config file exists
+
+For more options, run 'func deploy --help'`, fn.ErrInvalidKubeconfig, kubeconfigPath)
+}
+
+// wrapClusterNotAccessibleError returns a user-friendly error for cluster connection failures
+func wrapClusterNotAccessibleError(err error) error {
+	errMsg := err.Error()
+
+	// Case 1: Empty/no cluster configuration in kubeconfig
+	if strings.Contains(errMsg, "no configuration has been provided") ||
+		strings.Contains(errMsg, "invalid configuration") {
+		return fmt.Errorf(`%w
+
+Cannot connect to Kubernetes cluster. No valid cluster configuration found.
+
+Try this:
+  minikube start                             Start Minikube cluster
+  kind create cluster                        Start Kind cluster
+  kubectl cluster-info                       Verify cluster is running
+  kubectl config get-contexts                List available contexts
+
+For more options, run 'func deploy --help'`, fn.ErrClusterNotAccessible)
+	}
+
+	// Case 2: Cluster is down, network issues, auth errors, etc
+	return fmt.Errorf(`%w
+
+Cannot connect to Kubernetes cluster.
+
+Try this:
+  kubectl cluster-info                       Verify cluster is accessible
+  minikube status                            Check Minikube cluster status
+  kubectl get nodes                          Test cluster connection
+
+For more options, run 'func deploy --help'`, fn.ErrClusterNotAccessible)
 }
 
 func runDeploy(cmd *cobra.Command, newClient ClientFactory) (err error) {
@@ -280,6 +341,36 @@ func runDeploy(cmd *cobra.Command, newClient ClientFactory) (err error) {
 	}
 	if err = cfg.Validate(cmd); err != nil {
 		// Layer 2: Catch technical errors and provide CLI-specific user-friendly messages
+		if errors.Is(err, fn.ErrInvalidDomain) {
+			return fmt.Errorf(`%w
+
+Domain names must be valid DNS subdomains:
+  - Lowercase letters, numbers, hyphens (-), and dots (.) only
+  - Start and end with a letter or number
+  - Max 253 characters total, each part between dots max 63 characters
+
+Valid examples:
+  func deploy --registry ghcr.io/user --domain example.com
+  func deploy --registry ghcr.io/user --domain api.example.com
+
+Note: Domain must be configured on your Knative cluster, or it will be ignored.
+
+For more options, run 'func deploy --help'`, err)
+		}
+		if errors.Is(err, fn.ErrInvalidNamespace) {
+			return fmt.Errorf(`%w
+
+Invalid namespace name. Kubernetes namespaces must:
+  - Contain only lowercase letters, numbers, and hyphens (-)
+  - Start with a letter and end with a letter or number
+  - Be 63 characters or less
+
+Valid examples:
+  func deploy --namespace myapp
+  func deploy --namespace my-app-123
+
+For more options, run 'func deploy --help'`, err)
+		}
 		if errors.Is(err, fn.ErrConflictingImageAndRegistry) {
 			return fmt.Errorf(`%w
 
@@ -354,6 +445,12 @@ For more options, run 'func deploy --help'`, err)
 		// Returned is the function with fields like Registry, f.Deploy.Image &
 		// f.Deploy.Namespace populated.
 		if url, f, err = client.RunPipeline(cmd.Context(), f); err != nil {
+			if errors.Is(err, fn.ErrInvalidKubeconfig) {
+				return wrapInvalidKubeconfigError(err)
+			}
+			if errors.Is(err, fn.ErrClusterNotAccessible) {
+				return wrapClusterNotAccessibleError(err)
+			}
 			return
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Function Deployed at %v\n", url)
@@ -405,6 +502,12 @@ For more options, run 'func deploy --help'`, err)
 			}
 		}
 		if f, err = client.Deploy(cmd.Context(), f, fn.WithDeploySkipBuildCheck(cfg.Build == "false")); err != nil {
+			if errors.Is(err, fn.ErrInvalidKubeconfig) {
+				return wrapInvalidKubeconfigError(err)
+			}
+			if errors.Is(err, fn.ErrClusterNotAccessible) {
+				return wrapClusterNotAccessibleError(err)
+			}
 			return
 		}
 	}
@@ -565,6 +668,9 @@ type deployConfig struct {
 	//Service account to be used in deployed function
 	ServiceAccountName string
 
+	// Deployer specifies the type of deployment: "knative" or "raw"
+	Deployer string
+
 	// Remote indicates the deployment (and possibly build) process are to
 	// be triggered in a remote environment rather than run locally.
 	Remote bool
@@ -598,6 +704,7 @@ func newDeployConfig(cmd *cobra.Command) deployConfig {
 		PVCSize:            viper.GetString("pvc-size"),
 		Timestamp:          viper.GetBool("build-timestamp"),
 		ServiceAccountName: viper.GetString("service-account"),
+		Deployer:           viper.GetString("deployer"),
 	}
 	// NOTE: .Env should be viper.GetStringSlice, but this returns unparsed
 	// results and appears to be an open issue since 2017:
@@ -632,6 +739,7 @@ func (c deployConfig) Configure(f fn.Function) (fn.Function, error) {
 	f.Build.Git.Revision = c.GitBranch // TODO: should match; perhaps "refSpec"
 	f.Build.RemoteStorageClass = c.RemoteStorageClass
 	f.Deploy.ServiceAccountName = c.ServiceAccountName
+	f.Deploy.Deployer = c.Deployer
 	f.Local.Remote = c.Remote
 
 	// PVCSize
@@ -738,6 +846,21 @@ func (c deployConfig) Validate(cmd *cobra.Command) (err error) {
 		return
 	}
 
+	// Validate domain format if provided
+	if c.Domain != "" {
+		if err = utils.ValidateDomain(c.Domain); err != nil {
+			// Wrap the validation error as fn.ErrInvalidDomain for layer consistency
+			return fn.ErrInvalidDomain
+		}
+	}
+	// Validate namespace format if provided
+	if c.Namespace != "" {
+		if err = utils.ValidateNamespace(c.Namespace); err != nil {
+			// Wrap the validation error as fn.ErrInvalidNamespace for layer consistency
+			return fn.ErrInvalidNamespace
+		}
+	}
+
 	// Check Image Digest was included
 	var digest bool
 	if c.Image != "" {
@@ -787,6 +910,39 @@ func (c deployConfig) Validate(cmd *cobra.Command) (err error) {
 	// an fn.ErrNameRequired, fn.ErrImageRequired etc. as needed.
 
 	return
+}
+
+// clientOptions returns client options specific to deploy, including the appropriate deployer
+func (c deployConfig) clientOptions() ([]fn.Option, error) {
+	// Start with build config options
+	o, err := c.buildConfig.clientOptions()
+	if err != nil {
+		return o, err
+	}
+
+	t := newTransport(c.RegistryInsecure)
+	creds := newCredentialsProvider(config.Dir(), t, c.RegistryAuthfile)
+
+	// Override the pipelines provider to use custom credentials
+	// This is needed for remote builds (deploy --remote)
+	o = append(o, fn.WithPipelinesProvider(newTektonPipelinesProvider(creds, c.Verbose)))
+
+	// Add the appropriate deployer based on deploy type
+	deployer := c.Deployer
+	if deployer == "" {
+		deployer = knative.KnativeDeployerName // default to knative for backwards compatibility
+	}
+
+	switch deployer {
+	case knative.KnativeDeployerName:
+		o = append(o, fn.WithDeployer(newKnativeDeployer(c.Verbose)))
+	case k8s.KubernetesDeployerName:
+		o = append(o, fn.WithDeployer(newK8sDeployer(c.Verbose)))
+	default:
+		return o, fmt.Errorf("unsupported deploy type: %s (supported: %s, %s)", deployer, knative.KnativeDeployerName, k8s.KubernetesDeployerName)
+	}
+
+	return o, nil
 }
 
 // printDeployMessages to the output.  Non-error deployment messages.

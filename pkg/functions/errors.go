@@ -3,6 +3,7 @@ package functions
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -34,6 +35,21 @@ var (
 
 	// ErrConflictingImageAndRegistry is returned when both --image and --registry flags are explicitly provided
 	ErrConflictingImageAndRegistry = errors.New("both --image and --registry flags provided")
+
+	// ErrInvalidDomain is returned when a domain name doesn't meet DNS subdomain requirements
+	ErrInvalidDomain = errors.New("invalid domain")
+
+	// ErrInvalidKubeconfig is returned when the kubeconfig file path is invalid or inaccessible
+	ErrInvalidKubeconfig = errors.New("invalid kubeconfig")
+
+	// ErrClusterNotAccessible is returned when cluster connection fails (network, auth, etc)
+	ErrClusterNotAccessible = errors.New("cluster not accessible")
+
+	// ErrInvalidNamespace is returned when a namespace name doesn't meet Kubernetes naming requirements
+	ErrInvalidNamespace = errors.New("invalid namespace")
+
+	// ErrNotHandled is returned when a handler (describer, remover, ...) was not responsible for the function
+	ErrNotHandled = errors.New("describer does not handle this function")
 )
 
 // ErrNotInitialized indicates that a function is uninitialized
@@ -86,4 +102,32 @@ type ErrEnvNotExist struct {
 
 func (e ErrEnvNotExist) Error() string {
 	return fmt.Sprintf("environment variable %q does not exist", e.Name)
+}
+
+// ErrPortUnavailableError indicates that a port cannot be bound
+type ErrPortUnavailableError struct {
+	Port string
+	Err  error
+}
+
+func (e *ErrPortUnavailableError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("port %s is not available: %v", e.Port, e.Err)
+	}
+	return fmt.Sprintf("port %s is not available", e.Port)
+}
+
+func (e *ErrPortUnavailableError) Unwrap() error {
+	return e.Err
+}
+
+// IsPermissionDenied checks if the underlying error is a permission error
+func (e *ErrPortUnavailableError) IsPermissionDenied() bool {
+	if e.Err == nil {
+		return false
+	}
+	errStr := strings.ToLower(e.Err.Error())
+	return strings.Contains(errStr, "permission denied") ||
+		strings.Contains(errStr, "access denied") ||
+		strings.Contains(errStr, "operation not permitted")
 }

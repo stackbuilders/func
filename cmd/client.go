@@ -56,18 +56,18 @@ func NewTestClient(options ...fn.Option) ClientFactory {
 // 'Verbose' indicates the system should write out a higher amount of logging.
 func NewClient(cfg ClientConfig, options ...fn.Option) (*fn.Client, func()) {
 	var (
-		t  = newTransport(cfg.InsecureSkipVerify)    // may provide a custom impl which proxies
-		c  = newCredentialsProvider(config.Dir(), t) // for accessing registries
-		d  = newKnativeDeployer(cfg.Verbose)
+		t  = newTransport(cfg.InsecureSkipVerify)        // may provide a custom impl which proxies
+		c  = newCredentialsProvider(config.Dir(), t, "") // for accessing registries
+		d  = newKnativeDeployer(cfg.Verbose)             // default deployer (can be overridden via options)
 		pp = newTektonPipelinesProvider(c, cfg.Verbose)
 		o  = []fn.Option{ // standard (shared) options for all commands
 			fn.WithVerbose(cfg.Verbose),
 			fn.WithTransport(t),
 			fn.WithRepositoriesPath(config.RepositoriesPath()),
 			fn.WithBuilder(buildpacks.NewBuilder(buildpacks.WithVerbose(cfg.Verbose))),
-			fn.WithRemover(knative.NewRemover(cfg.Verbose)),
-			fn.WithDescriber(knative.NewDescriber(cfg.Verbose)),
-			fn.WithLister(knative.NewLister(cfg.Verbose)),
+			fn.WithRemovers(knative.NewRemover(cfg.Verbose), k8s.NewRemover(cfg.Verbose)),
+			fn.WithDescribers(knative.NewDescriber(cfg.Verbose), k8s.NewDescriber(cfg.Verbose)),
+			fn.WithListers(knative.NewLister(cfg.Verbose), k8s.NewLister(cfg.Verbose)),
 			fn.WithDeployer(d),
 			fn.WithPipelinesProvider(pp),
 			fn.WithPusher(docker.NewPusher(
@@ -101,7 +101,8 @@ func newTransport(insecureSkipVerify bool) fnhttp.RoundTripCloser {
 // newCredentialsProvider returns a credentials provider which possibly
 // has cluster-flavor specific additional credential loaders to take advantage
 // of features or configuration nuances of cluster variants.
-func newCredentialsProvider(configPath string, t http.RoundTripper) oci.CredentialsProvider {
+// If authFilePath is provided (non-empty), it will be used as the primary auth file.
+func newCredentialsProvider(configPath string, t http.RoundTripper, authFilePath string) oci.CredentialsProvider {
 	additionalLoaders := append(k8s.GetOpenShiftDockerCredentialLoaders(), k8s.GetGoogleCredentialLoader()...)
 	additionalLoaders = append(additionalLoaders, k8s.GetECRCredentialLoader()...)
 	additionalLoaders = append(additionalLoaders, k8s.GetACRCredentialLoader()...)
@@ -110,6 +111,11 @@ func newCredentialsProvider(configPath string, t http.RoundTripper) oci.Credenti
 		creds.WithPromptForCredentialStore(prompt.NewPromptForCredentialStore()),
 		creds.WithTransport(t),
 		creds.WithAdditionalCredentialLoaders(additionalLoaders...),
+	}
+
+	// If a custom auth file path is provided, use it
+	if authFilePath != "" {
+		options = append(options, creds.WithAuthFilePath(authFilePath))
 	}
 
 	// Other cluster variants can be supported here
@@ -133,6 +139,15 @@ func newKnativeDeployer(verbose bool) fn.Deployer {
 	}
 
 	return knative.NewDeployer(options...)
+}
+
+func newK8sDeployer(verbose bool) fn.Deployer {
+	options := []k8s.DeployerOpt{
+		k8s.WithDeployerVerbose(verbose),
+		k8s.WithDeployerDecorator(deployDecorator{}),
+	}
+
+	return k8s.NewDeployer(options...)
 }
 
 type deployDecorator struct {

@@ -17,14 +17,14 @@ func TestDescribe_Default(t *testing.T) {
 	_ = FromTempDirectory(t)
 	describer := mock.NewDescriber()
 
-	cmd := NewDescribeCmd(NewTestClient(fn.WithDescriber(describer)))
+	cmd := NewDescribeCmd(NewTestClient(fn.WithDescribers(describer)))
 	cmd.SetArgs([]string{})
 	err := cmd.Execute()
 
 	if err == nil {
 		t.Fatal("describing a nonexistent function should error")
 	}
-	if !strings.Contains(err.Error(), "function not found at this path and no name provided") {
+	if !strings.Contains(err.Error(), "No function found in provided path") {
 		t.Fatalf("Unexpected error text returned: %v", err)
 	}
 	if describer.DescribeInvoked {
@@ -52,7 +52,7 @@ func TestDescribe_Undeployed(t *testing.T) {
 
 	describer := mock.NewDescriber()
 
-	cmd := NewDescribeCmd(NewTestClient(fn.WithDescriber(describer)))
+	cmd := NewDescribeCmd(NewTestClient(fn.WithDescribers(describer)))
 	cmd.SetArgs([]string{})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func TestDescribe_ByName(t *testing.T) {
 		return fn.Instance{}, nil
 	}
 
-	cmd := NewDescribeCmd(NewTestClient(fn.WithDescriber(describer)))
+	cmd := NewDescribeCmd(NewTestClient(fn.WithDescribers(describer)))
 	cmd.SetArgs([]string{testname})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
@@ -111,9 +111,9 @@ func TestDescribe_ByProject(t *testing.T) {
 		if name != expected {
 			t.Fatalf("expected describer to receive name %q, got %q", expected, name)
 		}
-		return
+		return fn.Instance{}, nil
 	}
-	cmd := NewDescribeCmd(NewTestClient(fn.WithDescriber(describer)))
+	cmd := NewDescribeCmd(NewTestClient(fn.WithDescribers(describer)))
 	cmd.SetArgs([]string{})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
@@ -124,7 +124,7 @@ func TestDescribe_ByProject(t *testing.T) {
 // and a path will generate an error.
 func TestDescribe_NameAndPathExclusivity(t *testing.T) {
 	d := mock.NewDescriber()
-	cmd := NewDescribeCmd(NewTestClient(fn.WithDescriber(d)))
+	cmd := NewDescribeCmd(NewTestClient(fn.WithDescribers(d)))
 	cmd.SetArgs([]string{"-p", "./testpath", "testname"})
 	if err := cmd.Execute(); err == nil {
 		t.Fatalf("expected error on conflicting flags not received")

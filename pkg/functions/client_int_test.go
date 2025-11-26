@@ -18,10 +18,10 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
-
 	"knative.dev/func/pkg/builders/s2i"
 	"knative.dev/func/pkg/docker"
 	fn "knative.dev/func/pkg/functions"
+	"knative.dev/func/pkg/k8s"
 	"knative.dev/func/pkg/knative"
 	"knative.dev/func/pkg/oci"
 	. "knative.dev/func/pkg/testing"
@@ -36,7 +36,7 @@ import (
 //
 // A cluster is required. See .github/workflows for more. For example:
 //
-//   ./hack/install-binaries.sh && ./hack/allocate.sh && ./hack/registry.sh
+//   ./hack/binaries.sh && ./hack/cluster.sh && ./hack/registry.sh
 //
 // Binaries are required:  go for compiling functions and git for
 // repository-related tests.
@@ -64,11 +64,11 @@ const (
 
 var (
 	Go         = getEnvAsBin("FUNC_INT_GO", "go")
-	Git        = getEnvAsBin("FUNC_INT_GIT", "git")
+	GitBin     = getEnvAsBin("FUNC_INT_GIT", "git")
 	Kubeconfig = getEnvAsPath("FUNC_INT_KUBECONFIG", DefaultIntTestKubeconfig)
 	Verbose    = getEnvAsBool("FUNC_INT_VERBOSE", DefaultIntTestVerbose)
-	Registry   = getEnv("FUNC_INT_REGISTRY", DefaultIntTestRegistry)
 	Home, _    = filepath.Abs(DefaultIntTestHome)
+	//Registry = // see testing package (it's shared)
 )
 
 // containsInstance checks if the list includes the given instance.
@@ -454,6 +454,7 @@ func Handle(res http.ResponseWriter, req *http.Request) {
 // TestInt_Invoke_ServiceToService ensures that a Function can invoke another
 // service via localhost service discovery api provided by the Dapr sidecar.
 func TestInt_Invoke_ServiceToService(t *testing.T) {
+	t.Skip("TODO: dapr appears to be borked") // https://github.com/knative/func/issues/3210
 	resetEnv()
 	var (
 		verbose = true
@@ -548,7 +549,7 @@ func Handle(w http.ResponseWriter, req *http.Request) {
 	if route, f, err = client2.Apply(ctx, f); err != nil {
 		t.Fatal(err)
 	}
-	defer client2.Remove(ctx, "", "", f, true)
+	defer func() { _ = client2.Remove(ctx, "", "", f, true) }()
 
 	resp, err := http.Get(route)
 	if err != nil {
@@ -567,7 +568,7 @@ func Handle(w http.ResponseWriter, req *http.Request) {
 
 // TestDeployWithoutHome ensures that running client.New works without
 // home
-func TestDeployWithoutHome(t *testing.T) {
+func TestInt_DeployWithoutHome(t *testing.T) {
 	root, cleanup := Mktemp(t)
 	defer cleanup()
 
@@ -576,7 +577,7 @@ func TestDeployWithoutHome(t *testing.T) {
 	verbose := false
 	name := "test-deploy-no-home"
 
-	f := fn.Function{Runtime: "node", Name: name, Root: root, Namespace: DefaultIntTestNamespace}
+	f := fn.Function{Runtime: "go", Name: name, Root: root, Namespace: DefaultIntTestNamespace}
 
 	// client with s2i builder because pack needs HOME
 	client := newClientWithS2i(verbose)
@@ -637,19 +638,18 @@ func resetEnv() {
 	os.Setenv("HOME", Home)
 	os.Setenv("KUBECONFIG", Kubeconfig)
 	os.Setenv("FUNC_GO", Go)
-	os.Setenv("FUNC_GIT", Git)
+	os.Setenv("FUNC_GIT", GitBin)
 	os.Setenv("FUNC_VERBOSE", fmt.Sprintf("%t", Verbose))
 
 	// The Registry will be set either during first-time setup using the
 	// global config, or already defaulted by the user via environment variable.
-	os.Setenv("FUNC_REGISTRY", Registry)
+	os.Setenv("FUNC_REGISTRY", Registry())
 
 	// The following host-builder related settings will become the defaults
 	// once the host builder supports the core runtimes.  Setting them here in
 	// order to futureproof individual tests.
-	os.Setenv("FUNC_ENABLE_HOST_BUILDER", "true") // Enable the host builder
-	os.Setenv("FUNC_BUILDER", "host")             // default to host builder
-	os.Setenv("FUNC_CONTAINER", "false")          // "run" uses host builder
+	os.Setenv("FUNC_BUILDER", "host")    // default to host builder
+	os.Setenv("FUNC_CONTAINER", "false") // "run" uses host builder
 
 }
 
@@ -661,9 +661,9 @@ func newClient(verbose bool) *fn.Client {
 		fn.WithBuilder(oci.NewBuilder("", verbose)),
 		fn.WithPusher(oci.NewPusher(true, true, verbose)),
 		fn.WithDeployer(knative.NewDeployer(knative.WithDeployerVerbose(verbose))),
-		fn.WithDescriber(knative.NewDescriber(verbose)),
-		fn.WithRemover(knative.NewRemover(verbose)),
-		fn.WithLister(knative.NewLister(verbose)),
+		fn.WithDescribers(knative.NewDescriber(verbose), k8s.NewDescriber(verbose)),
+		fn.WithRemovers(knative.NewRemover(verbose), k8s.NewRemover(verbose)),
+		fn.WithListers(knative.NewLister(verbose), k8s.NewLister(verbose)),
 		fn.WithVerbose(verbose),
 	)
 }
@@ -673,9 +673,6 @@ func newClientWithS2i(verbose bool) *fn.Client {
 	builder := s2i.NewBuilder(s2i.WithVerbose(verbose))
 	pusher := docker.NewPusher(docker.WithVerbose(verbose))
 	deployer := knative.NewDeployer(knative.WithDeployerVerbose(verbose))
-	describer := knative.NewDescriber(verbose)
-	remover := knative.NewRemover(verbose)
-	lister := knative.NewLister(verbose)
 
 	return fn.New(
 		fn.WithRegistry(DefaultIntTestRegistry),
@@ -683,9 +680,9 @@ func newClientWithS2i(verbose bool) *fn.Client {
 		fn.WithBuilder(builder),
 		fn.WithPusher(pusher),
 		fn.WithDeployer(deployer),
-		fn.WithDescriber(describer),
-		fn.WithRemover(remover),
-		fn.WithLister(lister),
+		fn.WithDescribers(knative.NewDescriber(verbose), k8s.NewDescriber(verbose)),
+		fn.WithRemovers(knative.NewRemover(verbose), k8s.NewRemover(verbose)),
+		fn.WithListers(knative.NewLister(verbose), k8s.NewLister(verbose)),
 	)
 }
 
