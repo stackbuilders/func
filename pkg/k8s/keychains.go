@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
@@ -54,6 +55,23 @@ func GetACRCredentialLoader() []creds.CredentialsCallback {
 		func(registry string) (oci.Credentials, error) {
 			if !strings.HasSuffix(registry, ".azurecr.io") {
 				return oci.Credentials{}, nil
+			}
+
+			// HACK: Override credentials if they were given in environment
+			if acrToken := os.Getenv("ACR_TOKEN"); acrToken != "" {
+				return oci.Credentials{
+					Username: "00000000-0000-0000-0000-000000000000",
+					Password: acrToken,
+				}, nil
+			} else {
+				acrUser := os.Getenv("ACR_USERNAME")
+				acrPassword := os.Getenv("ACR_PASSWORD")
+				if acrUser != "" && acrPassword != "" {
+					return oci.Credentials{
+						Username: acrUser,
+						Password: acrPassword,
+					}, nil
+				}
 			}
 
 			// TODO: Save token somewhere and check expiration before asking for a new one
