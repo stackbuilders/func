@@ -56,16 +56,14 @@ func GetACRCredentialLoader() []creds.CredentialsCallback {
 				return oci.Credentials{}, nil
 			}
 
-			// TODO: Save token somewhere and check expiration before asking for a new one
-
 			azCredential, err := azidentity.NewDefaultAzureCredential(nil)
 			if err != nil {
-				return oci.Credentials{}, fmt.Errorf("Failed to create default Azure credentials: %v", err)
+				return oci.Credentials{}, fmt.Errorf("failed to create default Azure credentials: %v", err)
 			}
 
 			token, err := azCredential.GetToken(context.Background(), policy.TokenRequestOptions{Scopes: []string{"https://management.azure.com/.default"}})
 			if err != nil {
-				return oci.Credentials{}, fmt.Errorf("Failed to get Azure access token: %v", err)
+				return oci.Credentials{}, fmt.Errorf("failed to get Azure access token: %v", err)
 			}
 
 			return oci.Credentials{
