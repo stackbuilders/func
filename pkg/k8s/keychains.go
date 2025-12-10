@@ -61,43 +61,6 @@ func GetACRCredentialLoader(configPath string) []creds.CredentialsCallback {
 				Username: "00000000-0000-0000-0000-000000000000",
 				Password: token,
 			}, nil
-			/*
-				if token == nil {
-					azCredential, err := azidentity.NewDefaultAzureCredential(nil)
-					if err != nil {
-						return oci.Credentials{}, fmt.Errorf("failed to create default Azure credentials: %v", err)
-					}
-
-					token, err = azCredential.GetToken(context.Background(), policy.TokenRequestOptions{Scopes: []string{"https://management.azure.com/.default"}})
-					if err != nil {
-						return oci.Credentials{}, fmt.Errorf("failed to get Azure access token: %v", err)
-					}
-
-				}
-
-				// check if there is a valid token already generated for this target
-				err := config.CreatePaths()
-				if err != nil {
-					return oci.Credentials{}, fmt.Errorf("error checking for generated tokens: %v", err)
-				}
-				configPath := config.Dir()
-				if configPath == "" {
-					return oci.Credentials{}, fmt.Errorf("could not determine config path")
-				}
-				tokenFile := filepath.Join(configPath, "az_tokens", registry+".token")
-
-				azCredential, err := azidentity.NewDefaultAzureCredential(nil)
-				if err != nil {
-					return oci.Credentials{}, fmt.Errorf("failed to create default Azure credentials: %v", err)
-				}
-
-				token, err := azCredential.GetToken(context.Background(), policy.TokenRequestOptions{Scopes: []string{"https://management.azure.com/.default"}})
-				if err != nil {
-					return oci.Credentials{}, fmt.Errorf("failed to get Azure access token: %v", err)
-				}
-
-				// save token for future use
-			*/
 		},
 	}
 }
