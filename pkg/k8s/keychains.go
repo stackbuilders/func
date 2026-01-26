@@ -61,7 +61,8 @@ func GetACRCredentialLoader() []creds.CredentialsCallback {
 				return oci.Credentials{}, fmt.Errorf("failed to create default Azure credentials: %v", err)
 			}
 
-			token, err := azCredential.GetToken(context.Background(), policy.TokenRequestOptions{Scopes: []string{"https://management.azure.com/.default"}})
+			scope := "https://containerregistry.azure.net/.default"
+			token, err := azCredential.GetToken(context.Background(), policy.TokenRequestOptions{Scopes: []string{scope}})
 			if err != nil {
 				return oci.Credentials{}, fmt.Errorf("failed to get Azure access token: %v", err)
 			}
