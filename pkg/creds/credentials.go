@@ -28,6 +28,10 @@ import (
 
 type CredentialsCallback func(registry string) (oci.Credentials, error)
 
+// ContextCredentialsCallback represents a credential retrieval callback that supports context for cancellation and timeouts.
+// It should return ErrCredentialsNotFound if no credentials are available for the given registry.
+type ContextCredentialsCallback func(ctx context.Context, registry string) (oci.Credentials, error)
+
 var ErrUnauthorized = errors.New("bad credentials")
 
 var ErrCredentialsNotFound = errors.New("credentials not found")
@@ -93,6 +97,7 @@ type credentialsProvider struct {
 	verifyCredentials        VerifyCredentialsCallback
 	promptForCredentialStore ChooseCredentialHelperCallback
 	credentialLoaders        []CredentialsCallback
+	contextCredentialLoaders []ContextCredentialsCallback
 	authFilePath             string
 	transport                http.RoundTripper
 	insecure                 bool
@@ -157,6 +162,22 @@ func WithInsecure(insecure bool) Opt {
 func WithAdditionalCredentialLoaders(loaders ...CredentialsCallback) Opt {
 	return func(opts *credentialsProvider) {
 		opts.credentialLoaders = append(opts.credentialLoaders, loaders...)
+	}
+}
+
+// WithContextCredentialLoaders adds custom context-aware callbacks for credential retrieval.
+// These callbacks accept context for cancellation and timeout support,
+// and must return ErrCredentialsNotFound if the credentials are not found.
+// The callbacks are intended to be non-interactive, as opposed to WithPromptForCredentials.
+//
+// This is particularly useful when credential retrieval may need to be interrupted
+// (for example, due to network delays, API timeouts, or user cancel actions).
+//
+// Example usage: Azure Container Registry loader supports context cancellation
+// for credential acquisition routines.
+func WithContextCredentialLoaders(loaders ...ContextCredentialsCallback) Opt {
+	return func(opts *credentialsProvider) {
+		opts.contextCredentialLoaders = append(opts.contextCredentialLoaders, loaders...)
 	}
 }
 
@@ -275,6 +296,19 @@ func NewCredentialsProvider(configPath string, opts ...Opt) oci.CredentialsProvi
 	return c.getCredentials
 }
 
+func (c *credentialsProvider) getAllCredentialLoaders() []ContextCredentialsCallback {
+	// Unify all callbacks into a single slice
+	var allLoaders []ContextCredentialsCallback
+	// Wrap non-context loaders to match the ContextCredentialsCallback signature
+	for _, load := range c.credentialLoaders {
+		allLoaders = append(allLoaders, func(ctx context.Context, registry string) (oci.Credentials, error) {
+			return load(registry)
+		})
+	}
+	allLoaders = append(allLoaders, c.contextCredentialLoaders...)
+	return allLoaders
+}
+
 func (c *credentialsProvider) getCredentials(ctx context.Context, image string) (oci.Credentials, error) {
 	var err error
 	result := oci.Credentials{}
@@ -285,10 +319,8 @@ func (c *credentialsProvider) getCredentials(ctx context.Context, image string) 
 	}
 
 	registry := ref.Context().RegistryStr()
-	for _, load := range c.credentialLoaders {
-
-		result, err = load(registry)
-
+	for _, load := range c.getAllCredentialLoaders() {
+		result, err = load(ctx, registry)
 		if err != nil {
 			if errors.Is(err, ErrCredentialsNotFound) {
 				continue
@@ -304,7 +336,6 @@ func (c *credentialsProvider) getCredentials(ctx context.Context, image string) 
 				return oci.Credentials{}, err
 			}
 		}
-
 	}
 
 	if c.promptForCredentials == nil {
