@@ -1003,8 +1003,8 @@ github.com/sergi/go-diff v1.4.0/go.mod h1:A0bzQcvG0E7Rwjx0REVgAGH58e96+X0MeOfepq
 github.com/shurcooL/sanitized_anchor_name v1.0.0/go.mod h1:1NzhyTcUVG4SuEtjjoZeVRXNmyL/1OwPU0+IJeTBvfc=
 github.com/sigstore/protobuf-specs v0.4.1 h1:5SsMqZbdkcO/DNHudaxuCUEjj6x29tS2Xby1BxGU7Zc=
 github.com/sigstore/protobuf-specs v0.4.1/go.mod h1:+gXR+38nIa2oEupqDdzg4qSBT0Os+sP7oYv6alWewWc=
-github.com/sigstore/sigstore v1.9.3 h1:y2qlTj+vh+Or3ictKuR3JUFawZPdDxAjrWkeFhon0OQ=
-github.com/sigstore/sigstore v1.9.3/go.mod h1:VwYkiw0G0dRtwL25KSs04hCyVFF6CYMd/qvNeYrl7EQ=
+github.com/sigstore/sigstore v1.9.4 h1:64+OGed80+A4mRlNzRd055vFcgBeDghjZw24rPLZgDU=
+github.com/sigstore/sigstore v1.9.4/go.mod h1:Q7tGTC3gbtK7c3jcxEmGc2MmK4rRpIRzi3bxRFWKvEY=
 github.com/sirupsen/logrus v1.2.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=
 github.com/sirupsen/logrus v1.4.2/go.mod h1:tLMulIdttU9McNUspp0xgXVQah82FyeX6MwdIuYE2rE=
 github.com/sirupsen/logrus v1.6.0/go.mod h1:7uNnSEd1DgxDLC74fIahvMZmmYsHGZGEOFrfsX/uA88=
@@ -1079,8 +1079,8 @@ github.com/tchap/go-patricia/v2 v2.3.2 h1:xTHFutuitO2zqKAQ5rCROYgUb7Or/+IC3fts9/
 github.com/tchap/go-patricia/v2 v2.3.2/go.mod h1:VZRHKAb53DLaG+nA9EaYYiaEx6YztwDlLElMsnSHD4k=
 github.com/tektoncd/cli v0.37.0 h1:C+1/N+cGwj3ClIH9An2FggoplQ36zID7+5I0q03lrF0=
 github.com/tektoncd/cli v0.37.0/go.mod h1:RageyyvtjqucJ5l0yPInjHCgdyf8Tz7EFZXFjv6ROGQ=
-github.com/tektoncd/pipeline v0.65.1 h1:7Ee/nqG+QWE25NGzwKZdFE0p5COb/aljfDysUFv8+0o=
-github.com/tektoncd/pipeline v0.65.1/go.mod h1:V3cyfxxc7b3GLT2a13GX2mWA86qmxWhh4mOp4gfFQwQ=
+github.com/tektoncd/pipeline v1.0.1 h1:M/zKgke+OwxH+96JtvPACMhQD7We5UyDEJKGmaZ6Dms=
+github.com/tektoncd/pipeline v1.0.1/go.mod h1:6t5Dz42fVra9z+y3bcOzSwQADh9gEkOPGVUh8jrI/jg=
 github.com/tektoncd/triggers v0.27.0 h1:c55e/YJF6Vs5BEarqDYksFYuR4sFbmAVEqrLNPZvXUk=
 github.com/tektoncd/triggers v0.27.0/go.mod h1:DkkAkdSd9aAW9RklUVyFRKQ8kONmZQw4Ur2G1r3wFQo=
 github.com/tidwall/gjson v1.12.1 h1:ikuZsLdhr8Ws0IdROXUS1Gi4v9Z4pGqpX/CvJkxvfpo=

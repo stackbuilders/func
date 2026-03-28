@@ -54,7 +54,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/tektoncd/cli v0.37.0
-	github.com/tektoncd/pipeline v0.65.1
+	github.com/tektoncd/pipeline v1.0.1
 	gitlab.com/gitlab-org/api/client-go v0.150.0
 	golang.org/x/crypto v0.47.0
 	golang.org/x/mod v0.32.0
