@@ -24,11 +24,11 @@ require (
 	github.com/containerd/platforms v1.0.0-rc.1
 	github.com/containers/image/v5 v5.35.0
 	github.com/coreos/go-semver v0.3.1
-	github.com/creack/pty v1.1.21
-	github.com/docker/cli v28.3.0+incompatible
+	github.com/creack/pty v1.1.24
+	github.com/docker/cli v29.2.0+incompatible
 	github.com/docker/docker v28.3.0+incompatible
 	github.com/docker/docker-credential-helpers v0.9.3
-	github.com/docker/go-connections v0.5.0
+	github.com/docker/go-connections v0.6.0
 	github.com/go-git/go-billy/v5 v5.6.2
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/google/go-cmp v0.7.0
@@ -220,6 +220,8 @@ require (
 	github.com/moby/buildkit v0.22.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/go-archive v0.1.0 // indirect
+	github.com/moby/moby/api v1.54.0 // indirect
+	github.com/moby/moby/client v0.3.0 // indirect
 	github.com/moby/patternmatcher v0.6.0 // indirect
 	github.com/moby/spdystream v0.5.0 // indirect
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
