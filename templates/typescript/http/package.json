@@ -29,7 +29,7 @@
     "supertest": "^7.0.0",
     "tape": "^5.8.1",
     "tsd": "^0.33.0",
-    "tsx": "^4.21.0",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.0"
   },
